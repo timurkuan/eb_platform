@@ -50,6 +50,45 @@ app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 
 /* ══════════════════════════════════════════
+   DB инициализация — кестелерді автоматты жасау
+══════════════════════════════════════════ */
+async function initDB() {
+  const db = await getPool();
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS users (
+      id         INT AUTO_INCREMENT PRIMARY KEY,
+      email      VARCHAR(255) NOT NULL UNIQUE,
+      password   VARCHAR(255) NOT NULL,
+      name       VARCHAR(255) NOT NULL,
+      org        VARCHAR(255) DEFAULT '',
+      role       ENUM('admin','user') DEFAULT 'user',
+      status     ENUM('pending','active','blocked') DEFAULT 'pending',
+      eo_limit   INT DEFAULT 0,
+      eo_created INT DEFAULT 0,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      INDEX idx_email (email),
+      INDEX idx_status (status)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+  `);
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS ebooks (
+      id           VARCHAR(64) PRIMARY KEY,
+      user_id      INT NOT NULL,
+      title        VARCHAR(500) NOT NULL,
+      html_content LONGTEXT,
+      form_data    JSON,
+      deleted_at   DATETIME DEFAULT NULL,
+      created_at   DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at   DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+      INDEX idx_user (user_id),
+      INDEX idx_deleted (deleted_at)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+  `);
+  console.log('✓ DB кестелері тексерілді / жасалды');
+}
+
+/* ══════════════════════════════════════════
    Admin seed — бірінші іске қосқанда
 ══════════════════════════════════════════ */
 async function seedAdmin() {
@@ -558,6 +597,7 @@ async function start() {
     await db.query('SELECT 1');
     console.log('✓ MySQL байланысы орнатылды');
 
+    await initDB();
     await seedAdmin();
 
     app.listen(PORT, () => {
